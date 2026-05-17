@@ -8,6 +8,14 @@
 
 **Input**: User description: "Spout receiver that captures frames and prints color values to terminal"
 
+**Clarification 2026-05-17**: Scope expanded from terminal-only (Sprint 1) to include Phase 1 UI & Drawing Tools (Sprint 3 frontend): interactive screenshot workspace, ROI rectangle drawing, custom naming, OBS action assignment, P2 mirroring, and `config.json` export.
+
+## Clarifications
+
+### Session 2026-05-17
+
+- Q: Should the spec be updated to include Phase 1 UI scope or kept as Sprint 1 only? → A: Update existing spec to include UI + ROI tool scope, keeping all sprint artifacts in one feature branch for traceability.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Capture Frames from a Spout Sender (Priority: P1)
@@ -56,6 +64,53 @@ The Spout sender name, sampling coordinates, and target FPS are read from a conf
 2. **Given** a config file with `sample_points: [[100,50], [200,150]]`, **When** frames arrive, **Then** only those two pixel coordinates are sampled and printed
 3. **Given** a config file with `target_fps: 60`, **When** running, **Then** frames are processed at approximately 60 FPS
 
+---
+
+### User Story 4 - Draw ROI Rectangles on Screenshot (Priority: P1)
+
+The user uploads a static HUD screenshot, then draws rectangular regions of interest (Health Bar, Timer, Text) by clicking and dragging on the canvas. Each ROI is named, assigned a tool type, and saved to `config.json`.
+
+**Why this priority**: ROI definitions are the foundation for all downstream analysis. Without them, the system doesn't know where to sample.
+
+**Independent Test**: Upload a screenshot, draw 2-3 rectangles, verify coordinates are saved to `config.json` and reloaded correctly.
+
+**Acceptance Scenarios**:
+
+1. **Given** a screenshot is loaded, **When** the user clicks and drags, **Then** a rectangle overlay appears with live coordinate preview
+2. **Given** an ROI is drawn, **When** the user clicks "Add ROI", **Then** it appears in the ROI list and on the canvas
+3. **Given** ROIs are defined, **When** the user clicks "Save Config", **Then** all ROI data is serialized to `config.json`
+
+---
+
+### User Story 5 - Mirror ROI Coordinates for P2 (Priority: P2)
+
+For symmetric HUD layouts (e.g., fighting games), the user can mirror a P1 ROI to P2 by inverting the X coordinate: `x_p2 = screen_width - x_p1 - width`.
+
+**Why this priority**: Saves manual coordinate entry for mirrored player positions.
+
+**Independent Test**: Create a P1 ROI at x=100, width=200 on a 1920-width screen; mirror produces P2 ROI at x=1620, width=200.
+
+**Acceptance Scenarios**:
+
+1. **Given** a P1 ROI is selected, **When** the user clicks "Mirror to P2", **Then** a new ROI appears with inverted X coordinates
+2. **Given** a mirrored ROI is created, **When** saved, **Then** it includes a `mirrored_from` reference to the source ROI
+
+---
+
+### User Story 6 - SETUP/LIVE Mode Toggle (Priority: P1)
+
+The system operates in two modes: SETUP (UI active, canvas renders, ROI drawing enabled) and LIVE (UI minimized, canvas rendering disabled, analysis runs at configured frame skip).
+
+**Why this priority**: LIVE mode eliminates UI rendering overhead, ensuring the analytical loop runs at full performance.
+
+**Independent Test**: Toggle to LIVE mode, verify canvas stops rendering, verify frame skip dropdown controls analysis frequency.
+
+**Acceptance Scenarios**:
+
+1. **Given** the system is in SETUP mode, **When** the user toggles to LIVE, **Then** the canvas stops rendering and analysis begins
+2. **Given** the system is in LIVE mode, **When** frame skip is set to 2, **Then** analysis runs on 1 of every 3 frames
+3. **Given** the system is in LIVE mode, **When** an ROI analysis threshold is met, **Then** the corresponding OBS action is dispatched
+
 ### Edge Cases
 
 - What happens when the Spout sender name doesn't exist? The receiver should log an error and retry periodically, not crash.
@@ -69,7 +124,7 @@ The Spout sender name, sampling coordinates, and target FPS are read from a conf
 ### Functional Requirements
 
 - **FR-001**: The system MUST connect to a Spout sender by name and receive frames from GPU VRAM.
-- **FR-002**: The system MUST expose each captured frame as a NumPy array in BGRA (or RGB) format.
+- **FR-002**: The system MUST expose each captured frame as a NumPy array in RGBA format.
 - **FR-003**: The system MUST sample pixel color values at user-configured coordinates from each frame.
 - **FR-004**: The system MUST print sampled RGB and HSV values to the terminal console.
 - **FR-005**: The system MUST process frames at a user-configured target frame rate (default: 30 FPS).
@@ -77,13 +132,22 @@ The Spout sender name, sampling coordinates, and target FPS are read from a conf
 - **FR-007**: The system MUST read Spout sender name, sample points, and target FPS from a configuration file.
 - **FR-008**: The system MUST gracefully handle out-of-bounds sample coordinates by clamping or warning.
 - **FR-009**: The system MUST detect frame resolution changes mid-stream and adapt.
+- **FR-010**: The system MUST provide an interactive canvas for uploading a screenshot and drawing ROI rectangles via mouse drag.
+- **FR-011**: The system MUST support three ROI tool types: Health Bar (multi-color sampling), Timer (OCR), and Text (OCR).
+- **FR-012**: The system MUST serialize ROI definitions (id, name, x, y, width, height, tool_type, player, obs_source, obs_filter, obs_action) to `config.json`.
+- **FR-013**: The system MUST mirror P1 ROI coordinates to P2 using the formula: `x_p2 = screen_width - x_p1 - width`.
+- **FR-014**: The system MUST operate in SETUP mode (UI active, canvas rendering) and LIVE mode (canvas disabled, analysis only).
+- **FR-015**: The system MUST support frame skipping (0-10) in LIVE mode to control analysis frequency.
+- **FR-016**: The system MUST dispatch OBS WebSocket actions (visibility toggle, filter enable/disable) when ROI analysis thresholds are met.
 
 ### Key Entities *(include if feature involves data)*
 
-- **SpoutFrame**: A single video frame received from the Spout sender, represented as a NumPy array (height × width × 4 channels).
+- **SpoutFrame**: A single video frame received from the Spout sender, represented as a NumPy array (height × width × 4 channels, RGBA format).
 - **SpoutReceiver**: The component that manages the Spout connection lifecycle — connect, receive, disconnect, reconnect.
 - **ColorSample**: A single pixel color reading at a given (x, y) coordinate, containing RGB and HSV values.
 - **CaptureConfig**: Configuration specifying the Spout sender name, sample point coordinates, and target processing FPS.
+- **ROI**: A rectangular region of interest defined by (x, y, width, height) with a tool_type (health_bar, timer, text), player assignment (1 or 2), OBS action mapping, and optional mirror reference.
+- **AnalysisResult**: The output of an ROI analysis — ROI name, tool type, computed value (fill %, OCR text, etc.), and timestamp.
 
 ## Success Criteria *(mandatory)*
 
@@ -94,6 +158,9 @@ The Spout sender name, sampling coordinates, and target FPS are read from a conf
 - **SC-003**: The system survives a Spout sender restart (stop → start) without crashing and resumes frame capture within 2 seconds.
 - **SC-004**: Configuration changes (sender name, sample points) take effect on the next startup without code changes.
 - **SC-005**: The system consumes less than 5% CPU when idle (connected, no frame changes).
+- **SC-006**: ROI drawing workflow: user can upload a screenshot, draw 3 ROIs, assign names and tool types, and save to `config.json` in under 60 seconds.
+- **SC-007**: LIVE mode canvas rendering is fully disabled; frame grab + analysis loop runs at configured frame skip with zero PIL/tkinter overhead.
+- **SC-008**: OBS WebSocket actions dispatch within 100ms of ROI analysis threshold detection.
 
 ## Assumptions
 
@@ -101,5 +168,7 @@ The Spout sender name, sampling coordinates, and target FPS are read from a conf
 - The system has a DirectX 11 compatible GPU with up-to-date drivers (Spout requirement).
 - Development and testing are on Windows (Spout is Windows-only).
 - The Spout sender name is known and matches the configured value.
-- No UI is needed for this sprint — all output is via terminal/console.
 - Sample coordinates are provided as absolute pixel positions matching the sender's resolution.
+- The CustomTkinter GUI is used for configuration only; at runtime the UI may be minimized.
+- OBS WebSocket v5 is available at `127.0.0.1:4455` by default.
+- Center guide line is fixed at X=960 (assuming 1920 screen width).

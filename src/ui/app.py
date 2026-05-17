@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import queue
 import time
 from pathlib import Path
 from typing import Optional
@@ -15,6 +16,7 @@ from src.roi.health_bar import HealthBarAnalyzer
 from src.roi.text_ocr import TextAnalyzer
 from src.roi.timer import TimerAnalyzer
 from src.spout.receiver import SpoutGLSource
+from src.ui.capture_thread import CaptureThread
 from src.ui.tools_panel import ToolsPanel
 from src.ui.workspace import Workspace
 from src.ui.properties import PropertiesPanel
@@ -43,11 +45,10 @@ class RTAWorkspace(ctk.CTk):
 
         self._spout_source = SpoutGLSource()
         self._obs_client = OBSClient()
-        self._frame_count = 0
-        self._fps_timer = time.perf_counter()
+        self._result_queue: queue.Queue = queue.Queue(maxsize=10)
+        self._capture_thread: Optional[CaptureThread] = None
         self._mode = "setup"
         self._frame_skip = 2
-        self._skip_counter = 0
         self._rois: list[ROI] = []
         self._selected_roi_id: Optional[str] = None
 
@@ -84,9 +85,12 @@ class RTAWorkspace(ctk.CTk):
 
         self.workspace.canvas.set_coords_callback(self._on_coords_change)
 
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
         self._open_spout()
+        self._start_capture_thread()
+        self.after(CAPTURE_INTERVAL_MS, self._process_results)
         self.after(1000, self._discover_spout_senders)
-        self.after(CAPTURE_INTERVAL_MS, self._capture_loop)
         self.after(2000, self._obs_poll_sources)
 
     def _open_spout(self) -> None:
@@ -95,6 +99,34 @@ class RTAWorkspace(ctk.CTk):
             logger.info("Spout receiver opened")
         except Exception as e:
             logger.error("Failed to open Spout: %s", e)
+
+    def _start_capture_thread(self) -> None:
+        self._capture_thread = CaptureThread(
+            spout_source=self._spout_source,
+            analyzers=ANALYZERS,
+            result_queue=self._result_queue,
+            interval_ms=CAPTURE_INTERVAL_MS,
+        )
+        self._capture_thread.set_mode(self._mode)
+        self._capture_thread.set_frame_skip(self._frame_skip)
+        self._capture_thread.start()
+
+    def _process_results(self) -> None:
+        while not self._result_queue.empty():
+            try:
+                data = self._result_queue.get_nowait()
+                if data["type"] == "frame":
+                    pil_img = Image.fromarray(data["rgb"])
+                    self.workspace.canvas._render()
+                elif data["type"] == "fps":
+                    logger.debug("Capture FPS: %.1f", data["fps"])
+                elif data["type"] == "analysis":
+                    for result in data["results"]:
+                        logger.info("ROI '%s' = %s", result.roi_name, result.value)
+            except queue.Empty:
+                break
+
+        self.after(CAPTURE_INTERVAL_MS, self._process_results)
 
     def _discover_spout_senders(self) -> None:
         senders = self._spout_source.get_available_senders()
@@ -128,41 +160,6 @@ class RTAWorkspace(ctk.CTk):
             logger.debug("OBS sources: %s", sources)
         self.after(5000, self._obs_poll_sources)
 
-    def _capture_loop(self) -> None:
-        frame = self._spout_source.grab()
-        if frame is not None:
-            self._frame_count += 1
-
-            if self._mode == "live":
-                self._skip_counter += 1
-                if self._skip_counter <= self._frame_skip:
-                    self.after(CAPTURE_INTERVAL_MS, self._capture_loop)
-                    return
-                self._skip_counter = 0
-                self._run_analysis(frame)
-            else:
-                rgb_data = frame.data[:, :, :3]
-                pil_img = Image.fromarray(rgb_data)
-                self.workspace.canvas._render()
-
-            now = time.perf_counter()
-            elapsed = now - self._fps_timer
-            if elapsed >= 2.0:
-                fps = self._frame_count / elapsed
-                logger.debug("Capture FPS: %.1f", fps)
-                self._frame_count = 0
-                self._fps_timer = now
-
-        self.after(CAPTURE_INTERVAL_MS, self._capture_loop)
-
-    def _run_analysis(self, frame) -> None:
-        for roi in self._rois:
-            analyzer = ANALYZERS.get(roi.tool_type)
-            if analyzer:
-                result = analyzer.analyze(roi, frame)
-                if result:
-                    logger.info("ROI '%s' = %s", result.roi_name, result.value)
-
     def _on_upload(self, path: str) -> None:
         logger.info("Screenshot loaded: %s", path)
         self.workspace.canvas.load_screenshot(path)
@@ -173,11 +170,14 @@ class RTAWorkspace(ctk.CTk):
     def _on_mode_toggle(self, mode: str) -> None:
         self._mode = mode
         self.workspace.canvas.set_mode(mode)
+        if self._capture_thread:
+            self._capture_thread.set_mode(mode)
         logger.info("Mode switched to: %s", mode)
 
     def _on_frame_skip(self, val: int) -> None:
         self._frame_skip = val
-        self._skip_counter = 0
+        if self._capture_thread:
+            self._capture_thread.set_frame_skip(val)
         logger.info("Frame skip set to: %d", val)
 
     def _on_coords_change(self, x: int, y: int, w: int, h: int) -> None:
@@ -187,6 +187,8 @@ class RTAWorkspace(ctk.CTk):
         self._rois = [r for r in self._rois if r.id != roi_id]
         self.workspace.canvas.remove_roi(roi_id)
         self.workspace.roi_list.remove_roi(roi_id)
+        if self._capture_thread:
+            self._capture_thread.remove_roi(roi_id)
         if self._selected_roi_id == roi_id:
             self._selected_roi_id = None
             self.properties.set_selected_roi(None)
@@ -202,6 +204,8 @@ class RTAWorkspace(ctk.CTk):
         self._rois.append(roi)
         self.workspace.canvas.add_roi(roi)
         self.workspace.roi_list.add_roi(roi)
+        if self._capture_thread:
+            self._capture_thread.add_roi(roi)
         logger.info("ROI added: %s (%s)", roi.name, roi.tool_type)
 
     def _on_mirror(self, source_roi: ROI) -> None:
@@ -209,6 +213,8 @@ class RTAWorkspace(ctk.CTk):
         self._rois.append(mirrored)
         self.workspace.canvas.add_roi(mirrored)
         self.workspace.roi_list.add_roi(mirrored)
+        if self._capture_thread:
+            self._capture_thread.add_roi(mirrored)
         logger.info("ROI mirrored: %s -> %s", source_roi.name, mirrored.name)
 
     def _on_save(self) -> None:
@@ -226,6 +232,14 @@ class RTAWorkspace(ctk.CTk):
         }
         CONFIG_PATH.write_text(json.dumps(config, indent=2), encoding="utf-8")
         logger.info("Config saved to %s", CONFIG_PATH.resolve())
+
+    def _on_close(self) -> None:
+        logger.info("Shutting down...")
+        if self._capture_thread:
+            self._capture_thread.stop()
+            self._capture_thread.join(timeout=5.0)
+        self._obs_client.disconnect()
+        self.destroy()
 
 
 def main():

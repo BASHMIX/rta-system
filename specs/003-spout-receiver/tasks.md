@@ -32,3 +32,4 @@
 - [x] T047 Frame skip implementation (0-10 dropdown)
 - [x] T048 LIVE mode: zero canvas rendering, grab-only loop
 - [x] T049 Crop-first: sampler operates on `frame[y:y+h, x:x+w]` only
+- [x] T050 Refactor capture loop to background `threading.Thread` with `queue.Queue` bridge

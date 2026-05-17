@@ -41,5 +41,5 @@ tests in `tests/`.
 <!-- SPECKIT START -->
 **Active Plan**: `specs/003-spout-receiver/plan.md` — Spout Frame Receiver (capture frames, sample colors, print to terminal)
 
-**Status**: Phase 1 (UI & Drawing Tools) implementation complete. All tasks T034-T049 done.
+**Status**: Phase 1 (UI & Drawing Tools) implementation complete. All tasks T034-T049 done. Constitution Principle IV compliant: capture loop runs in background `CaptureThread` (threading.Thread), UI updates via `after()` + `queue.Queue` bridge.
 <!-- SPECKIT END -->
