@@ -13,14 +13,13 @@ Connect to a Spout sender (e.g., OBS Studio), capture video frames as NumPy arra
 **Language/Version**: Python 3.10+
 
 **Primary Dependencies**:
-- Spout-Python (SpoutGL) — DirectX shared texture receiver (Windows-only)
+- SpoutGL (`pip install SpoutGL`) — DirectX shared texture receiver (Windows-only). Researched and confirmed: maintained fork, Python 3.8+, pybind11-based, full receiveImage API.
 - NumPy — frame array representation
 - OpenCV (`cv2`) — color space conversion (BGR↔RGB↔HSV), optional frame utilities
-- NEEDS CLARIFICATION: Which specific Spout Python package? SpoutGL (`pip install spoutgl`) is the maintained fork. Spout-Python is older. Need to verify which supports Python 3.10+ receiver mode.
 
 **Storage**: N/A (terminal output, no persistence)
 
-**Testing**: pytest with mock Spot sender or synthetic test pattern generator. NEEDS CLARIFICATION: How to test Spout receiver without a real GPU sender? Options: (a) synthetic NumPy frames injected before the Spout layer, (b) a headless Spout test sender, (c) pytest fixtures that bypass Spout entirely for unit tests.
+**Testing**: pytest with mock Spout sender via FrameSource ABC. Tests inject synthetic NumPy frames through MockFrameSource.
 
 **Target Platform**: Windows 10/11 (Spout requires DirectX 11)
 
@@ -30,7 +29,7 @@ Connect to a Spout sender (e.g., OBS Studio), capture video frames as NumPy arra
 
 **Constraints**: Must not exceed 5% CPU at idle (connected, static scene). Frame drops when system cannot keep up (no unbounded queuing). Spout sender name must match config exactly.
 
-**Scale/Scope**: Single-sender, single-receiver. ~3 source files for this sprint.
+**Scale/Scope**: Single-sender, single-receiver. 5 source files for this sprint (receiver, sampler, config, run, utils).
 
 ## Constitution Check
 

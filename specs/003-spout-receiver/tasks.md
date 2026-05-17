@@ -45,8 +45,8 @@
 
 **Independent Test**: Run with OBS Spout output active; verify frames arrive at expected resolution.
 
-- [x] T007 [US1] Implement SpoutGLSource (FrameSource) using SpoutGL.receiveImage() in src/spout/receiver.py
-- [x] T008 [US1] Create main.py entry point with capture loop using SpoutGLSource
+- [x] T007 [US1] Implement SpoutGLSource (FrameSource) in src/spout/receiver.py (initially had broken receiveImage API — fixed in T021)
+- [x] T008 [US1] Create run.py terminal entry point with capture loop in src/spout/run.py
 
 **Checkpoint**: At this point, US1 should work - frames captured from Spout sender.
 
@@ -90,6 +90,26 @@
 - [x] T018 Add sender resolution change detection in src/spout/receiver.py
 - [x] T019 Add frame drop detection when system can't keep up in main.py
 - [x] T020 Add config.json error handling for missing/invalid files in main.py
+
+---
+
+## Phase 7: Workspace UI & Bug Fixes
+
+**Purpose**: Fix Spout capture bug, add sender discovery UI, replace widget UI.
+
+- [x] T021 Fix SpoutGLSource.receiveImage() API — pre-allocate bytearray, call receiveImage(buffer, GL_BGRA_EXT, False, 0), check bool return
+- [x] T022 Add get_available_senders() and set_sender() methods in src/spout/receiver.py
+- [x] T023 Fix close() to call releaseReceiver() before nulling in src/spout/receiver.py
+- [x] T024 Use .copy() on frame data to avoid buffer corruption in src/spout/receiver.py
+- [x] T025 Create ToggleGroup radio widget in src/ui/widgets/toggle_group.py
+- [x] T026 Create ConnectionRow widget (label + dropdown + status dot) in src/ui/widgets/connection_row.py
+- [x] T027 Create ToolsPanel (left column) in src/ui/tools_panel.py
+- [x] T028 Create Workspace panel (center column) in src/ui/workspace.py
+- [x] T029 Create PropertiesPanel (right column) in src/ui/properties.py
+- [x] T030 Create RTAWorkspace 3-column app layout in src/ui/app.py
+- [x] T031 Replace main.py with new RTAWorkspace entry point
+- [x] T032 Create OBSClient stub in src/obs/client.py
+- [x] T033 Clean up plan.md NEEDS CLARIFICATION markers and source file count
 
 ---
 

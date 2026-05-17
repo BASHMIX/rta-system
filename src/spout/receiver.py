@@ -20,60 +20,86 @@ class CaptureStats:
 
 
 class SpoutGLSource(FrameSource):
-    def __init__(self, sender_name: str):
+    def __init__(self, sender_name: str = ""):
         self._sender_name = sender_name
         self._receiver: Optional["SpoutGL.SpoutReceiver"] = None
         self._width = 0
         self._height = 0
         self._stats = CaptureStats()
+        self._buffer: Optional[bytearray] = None
 
     def open(self) -> None:
         import SpoutGL
 
         self._receiver = SpoutGL.SpoutReceiver()
-        self._receiver.setReceiverName(self._sender_name)
+        if self._sender_name:
+            self._receiver.setReceiverName(self._sender_name)
         self._width = 0
         self._height = 0
+        self._buffer = None
         logger.info("Spout receiver opened for sender '%s'", self._sender_name)
 
     def close(self) -> None:
         if self._receiver is not None:
+            try:
+                self._receiver.releaseReceiver()
+            except Exception:
+                pass
             self._receiver = None
+            self._buffer = None
             logger.info("Spout receiver closed")
+
+    def set_sender(self, name: str) -> None:
+        self._sender_name = name
+        if self._receiver is not None:
+            self._receiver.setReceiverName(name)
+        logger.info("Spout receiver switched to sender '%s'", name)
 
     def grab(self) -> Optional[SpoutFrame]:
         if self._receiver is None:
             return None
         try:
-            sender_name = self._sender_name
-            w = self._receiver.getSenderWidth()
-            h = self._receiver.getSenderHeight()
-            if w == 0 or h == 0:
-                return None
+            import SpoutGL
+
             if self._receiver.isUpdated():
-                self._width = w
-                self._height = h
-            gl_format = (
-                0x80E1  # GL_BGRA_EXT
-            )
-            pixels = self._receiver.receiveImage(
-                sender_name, self._width, self._height, gl_format
-            )
-            if pixels is None or len(pixels) == 0:
+                self._width = self._receiver.getSenderWidth()
+                self._height = self._receiver.getSenderHeight()
+                buf_size = self._width * self._height * 4
+                self._buffer = bytearray(buf_size)
+
+            if self._buffer is None or self._width == 0 or self._height == 0:
                 return None
-            frame_data = np.frombuffer(pixels, dtype=np.uint8).reshape(
+
+            result = self._receiver.receiveImage(
+                self._buffer, SpoutGL.enums.GL_BGRA_EXT, False, 0
+            )
+            if not result:
+                return None
+            if SpoutGL.helpers.isBufferEmpty(self._buffer):
+                return None
+
+            frame_data = np.frombuffer(self._buffer, dtype=np.uint8).reshape(
                 (self._height, self._width, 4)
             )
             self._stats.frames_received += 1
             return SpoutFrame(
                 width=self._width,
                 height=self._height,
-                data=frame_data,
+                data=frame_data.copy(),
                 timestamp=time.perf_counter(),
             )
         except Exception:
             logger.warning("Failed to grab frame from Spout sender", exc_info=True)
             return None
+
+    def get_available_senders(self) -> list[str]:
+        if self._receiver is None:
+            return []
+        try:
+            return self._receiver.getSenderList()
+        except Exception:
+            logger.warning("Failed to list Spout senders", exc_info=True)
+            return []
 
     @property
     def is_open(self) -> bool:
