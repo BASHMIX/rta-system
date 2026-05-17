@@ -1,0 +1,10 @@
+{
+  "spout": {
+    "sender_name": "OBS",
+    "sample_points": [
+      [640, 360],
+      [200, 150]
+    ],
+    "target_fps": 30
+  }
+}

@@ -2,8 +2,9 @@
 
 ## Status
 
-Implementing sprint-by-sprint following the roadmap. Current feature: Save & Load
-Game Configs (per-game profile persistence). Source code in `src/`, tests in `tests/`.
+Implementing sprint-by-sprint following the roadmap. Current feature: Spout Frame
+Receiver (capture frames, sample colors, print to terminal). Source code in `src/`,
+tests in `tests/`.
 
 ## Predetermined Tech Stack (from roadmap)
 
@@ -38,5 +39,5 @@ Game Configs (per-game profile persistence). Source code in `src/`, tests in `te
 - No external AI/LLM dependencies at this stage (roadmap positions AI as a "future" layer).
 
 <!-- SPECKIT START -->
-**Active Plan**: `specs/002-save-load-config/plan.md` — Save & Load Game Configs (per-game profile persistence)
+**Active Plan**: `specs/003-spout-receiver/plan.md` — Spout Frame Receiver (capture frames, sample colors, print to terminal)
 <!-- SPECKIT END -->
