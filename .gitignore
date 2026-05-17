@@ -32,3 +32,6 @@ profiles/
 
 # Embedded sub-repo (opencode internal)
 opencode/
+
+# User notes
+ui.md
