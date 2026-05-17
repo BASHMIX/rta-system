@@ -48,22 +48,44 @@ class RTAApp(ctk.CTk):
                 profile.name, self.current_obs_ws
             )
             if diff:
-                result = ctk.CTkMessageBox(
-                    master=self,
-                    title="OBS Credentials Changed",
-                    message=(
-                        f"Profile '{profile.name}' has different OBS WebSocket "
-                        f"settings. Reconnect to OBS?"
-                    ),
-                    icon="question",
-                    option_1="Reconnect",
-                    option_2="Keep Current",
-                )
-                if result == "Reconnect":
-                    self.status_label.configure(
-                        text=f"Loaded '{profile.name}' — OBS reconnection needed"
-                    )
-        self._apply_profile(profile)
+                self._ask_obs_reconnect(profile)
+            else:
+                self._apply_profile(profile)
+        else:
+            self._apply_profile(profile)
+
+    def _ask_obs_reconnect(self, profile: GameProfile):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("OBS Credentials Changed")
+        dialog.geometry("400x150")
+        dialog.resizable(False, False)
+        dialog.grab_set()
+
+        ctk.CTkLabel(
+            dialog,
+            text=(
+                f"Profile '{profile.name}' has different OBS WebSocket "
+                f"settings. Reconnect to OBS?"
+            ),
+            wraplength=350,
+        ).pack(pady=(20, 15))
+
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack()
+
+        def on_reconnect():
+            dialog.destroy()
+            self.status_label.configure(
+                text=f"Loaded '{profile.name}' — OBS reconnection needed"
+            )
+            self._apply_profile(profile)
+
+        def on_keep():
+            dialog.destroy()
+            self._apply_profile(profile)
+
+        ctk.CTkButton(btn_frame, text="Reconnect", command=on_reconnect).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Keep Current", command=on_keep).pack(side="left", padx=5)
 
     def _apply_profile(self, profile: GameProfile):
         self.current_profile = profile
