@@ -2,10 +2,8 @@
 
 ## Status
 
-This repository is **pre-implementation** (greenfield). The only source of truth is the project roadmap:
-- `Roadmap_Real-Time FGC Telemetry & OBS Automation System.md` — architecture, tech stack, JSON schema, dev sprints.
-
-There is no code, build system, CI, tests, or package manager config yet. All work will create the project from scratch.
+Implementing sprint-by-sprint following the roadmap. Current feature: Save & Load
+Game Configs (per-game profile persistence). Source code in `src/`, tests in `tests/`.
 
 ## Predetermined Tech Stack (from roadmap)
 
@@ -38,3 +36,7 @@ There is no code, build system, CI, tests, or package manager config yet. All wo
 - Spout is **Windows-only** (DirectX shared texture). Development is Windows-only.
 - The roadmap document contains repeated/duplicate sections. The **first occurrence** of each section is authoritative.
 - No external AI/LLM dependencies at this stage (roadmap positions AI as a "future" layer).
+
+<!-- SPECKIT START -->
+**Active Plan**: `specs/002-save-load-config/plan.md` — Save & Load Game Configs (per-game profile persistence)
+<!-- SPECKIT END -->
