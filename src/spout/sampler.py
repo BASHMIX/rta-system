@@ -22,8 +22,8 @@ def sample_pixel(frame: np.ndarray, x: int, y: int) -> ColorSample:
     h_img, w_img = frame.shape[:2]
     cx = max(0, min(x, w_img - 1))
     cy = max(0, min(y, h_img - 1))
-    bgra = frame[cy, cx]
-    b, g, r, _ = int(bgra[0]), int(bgra[1]), int(bgra[2]), int(bgra[3])
+    rgba = frame[cy, cx]
+    r, g, b, _ = int(rgba[0]), int(rgba[1]), int(rgba[2]), int(rgba[3])
     rgb_pixel = np.array([[[r, g, b]]], dtype=np.uint8)
     hsv = cv2.cvtColor(rgb_pixel, cv2.COLOR_RGB2HSV)
     h_val, s_val, v_val = int(hsv[0, 0, 0]), int(hsv[0, 0, 1]), int(hsv[0, 0, 2])

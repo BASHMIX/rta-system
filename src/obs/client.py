@@ -48,6 +48,16 @@ class OBSClient:
             self._client = None
             logger.info("OBS disconnected")
 
+    def get_inputs(self) -> list[str]:
+        if self._client is None:
+            return []
+        try:
+            resp = self._client.get_input_list()
+            return [item["inputName"] for item in resp.inputs]
+        except Exception as e:
+            logger.warning("Failed to get OBS inputs: %s", e)
+            return []
+
     @property
     def is_connected(self) -> bool:
         return self._client is not None

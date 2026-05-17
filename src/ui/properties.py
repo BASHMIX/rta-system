@@ -89,3 +89,9 @@ class PropertiesPanel(ctk.CTkFrame):
             text_color=TEXT,
         )
         self.action_dropdown.pack(fill="x", padx=12, pady=(0, 12))
+
+    def refresh_source_list(self, sources: list[str]) -> None:
+        current = self.source_dropdown.get()
+        self.source_dropdown.configure(values=sources or ["Select source"])
+        if current not in sources:
+            self.source_dropdown.set(sources[0] if sources else "Select source")

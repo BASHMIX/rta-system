@@ -53,6 +53,7 @@ class RTAWorkspace(ctk.CTk):
         self._open_spout()
         self.after(1000, self._discover_spout_senders)
         self.after(CAPTURE_INTERVAL_MS, self._capture_loop)
+        self.after(2000, self._obs_poll_sources)
 
     def _open_spout(self) -> None:
         try:
@@ -87,11 +88,18 @@ class RTAWorkspace(ctk.CTk):
             logger.info("OBS disconnected")
             return True
 
+    def _obs_poll_sources(self) -> None:
+        if self._obs_client.is_connected:
+            sources = self._obs_client.get_inputs()
+            logger.debug("OBS sources: %s", sources)
+            self.properties.refresh_source_list(sources)
+        self.after(5000, self._obs_poll_sources)
+
     def _capture_loop(self) -> None:
         frame = self._spout_source.grab()
         if frame is not None:
             self._frame_count += 1
-            rgb_data = frame.data[:, :, [2, 1, 0]]
+            rgb_data = frame.data[:, :, :3]
             pil_img = Image.fromarray(rgb_data)
             self.workspace.set_canvas_image(pil_img)
             now = time.perf_counter()

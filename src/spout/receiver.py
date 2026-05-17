@@ -64,23 +64,31 @@ class SpoutGLSource(FrameSource):
             import SpoutGL
 
             result = self._receiver.receiveImage(
-                self._buffer, SpoutGL.enums.GL_BGRA_EXT, False, 0
+                self._buffer, SpoutGL.enums.GL_RGBA, False, 0
             )
 
             if self._receiver.isUpdated():
                 self._width = self._receiver.getSenderWidth()
                 self._height = self._receiver.getSenderHeight()
-                logger.info("Sender resolution: %dx%d", self._width, self._height)
+                logger.info(
+                    "Sender '%s' resolution: %dx%d",
+                    self._sender_name,
+                    self._width,
+                    self._height,
+                )
                 buf_size = self._width * self._height * 4
                 self._buffer = array.array("B", repeat(0, buf_size))
 
             if self._buffer is None or self._width == 0 or self._height == 0:
+                logger.debug("grab: no buffer or zero size (%s, %dx%d)", bool(self._buffer), self._width, self._height)
                 return None
 
             if not result:
+                logger.debug("grab: receiveImage returned False")
                 return None
 
             if SpoutGL.helpers.isBufferEmpty(self._buffer):
+                logger.debug("grab: buffer is empty")
                 return None
 
             frame_data = np.frombuffer(self._buffer, dtype=np.uint8).reshape(
@@ -88,8 +96,11 @@ class SpoutGLSource(FrameSource):
             )
             self._stats.frames_received += 1
 
-            self._receiver.waitFrameSync(self._sender_name, 1)
-
+            logger.debug(
+                "Frame %dx%d received",
+                self._width,
+                self._height,
+            )
             return SpoutFrame(
                 width=self._width,
                 height=self._height,
@@ -99,6 +110,11 @@ class SpoutGLSource(FrameSource):
         except Exception:
             logger.warning("Failed to grab frame from Spout sender", exc_info=True)
             return None
+        finally:
+            try:
+                self._receiver.waitFrameSync(self._sender_name, 10000)
+            except Exception:
+                pass
 
     def get_available_senders(self) -> list[str]:
         if self._receiver is None:
