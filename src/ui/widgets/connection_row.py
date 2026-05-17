@@ -8,7 +8,7 @@ GRAY = "#555555"
 
 
 class ConnectionRow(ctk.CTkFrame):
-    def __init__(self, parent, label: str, options: list[str] = None, **kwargs):
+    def __init__(self, parent, label: str, options: list[str] = None, command=None, **kwargs):
         super().__init__(parent, fg_color="transparent", **kwargs)
 
         self.label = ctk.CTkLabel(self, text=label, text_color=TEXT, font=("", 13, "bold"))
@@ -17,6 +17,7 @@ class ConnectionRow(ctk.CTkFrame):
         self.dropdown = ctk.CTkOptionMenu(
             self,
             values=options or ["No senders"],
+            command=command,
             corner_radius=6,
             fg_color="#0f3460",
             button_color="#0f3460",

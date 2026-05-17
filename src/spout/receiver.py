@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import array
 import logging
 import time
 from dataclasses import dataclass
+from itertools import repeat
 from typing import Optional
 
 import numpy as np
@@ -26,7 +28,7 @@ class SpoutGLSource(FrameSource):
         self._width = 0
         self._height = 0
         self._stats = CaptureStats()
-        self._buffer: Optional[bytearray] = None
+        self._buffer: Optional[array.array] = None
 
     def open(self) -> None:
         import SpoutGL
@@ -50,9 +52,9 @@ class SpoutGLSource(FrameSource):
             logger.info("Spout receiver closed")
 
     def set_sender(self, name: str) -> None:
+        self.close()
         self._sender_name = name
-        if self._receiver is not None:
-            self._receiver.setReceiverName(name)
+        self.open()
         logger.info("Spout receiver switched to sender '%s'", name)
 
     def grab(self) -> Optional[SpoutFrame]:
@@ -61,20 +63,23 @@ class SpoutGLSource(FrameSource):
         try:
             import SpoutGL
 
+            result = self._receiver.receiveImage(
+                self._buffer, SpoutGL.enums.GL_BGRA_EXT, False, 0
+            )
+
             if self._receiver.isUpdated():
                 self._width = self._receiver.getSenderWidth()
                 self._height = self._receiver.getSenderHeight()
+                logger.info("Sender resolution: %dx%d", self._width, self._height)
                 buf_size = self._width * self._height * 4
-                self._buffer = bytearray(buf_size)
+                self._buffer = array.array("B", repeat(0, buf_size))
 
             if self._buffer is None or self._width == 0 or self._height == 0:
                 return None
 
-            result = self._receiver.receiveImage(
-                self._buffer, SpoutGL.enums.GL_BGRA_EXT, False, 0
-            )
             if not result:
                 return None
+
             if SpoutGL.helpers.isBufferEmpty(self._buffer):
                 return None
 
@@ -82,6 +87,9 @@ class SpoutGLSource(FrameSource):
                 (self._height, self._width, 4)
             )
             self._stats.frames_received += 1
+
+            self._receiver.waitFrameSync(self._sender_name, 1)
+
             return SpoutFrame(
                 width=self._width,
                 height=self._height,
