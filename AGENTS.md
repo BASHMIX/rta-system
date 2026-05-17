@@ -40,4 +40,6 @@ tests in `tests/`.
 
 <!-- SPECKIT START -->
 **Active Plan**: `specs/003-spout-receiver/plan.md` — Spout Frame Receiver (capture frames, sample colors, print to terminal)
+
+**Status**: Phase 1 (UI & Drawing Tools) implementation complete. All tasks T034-T049 done.
 <!-- SPECKIT END -->

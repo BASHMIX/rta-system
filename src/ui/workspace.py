@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
-from typing import Optional
+from typing import Callable, Optional
 
 import customtkinter as ctk
 from PIL import Image
 
+from src.ui.drawing_canvas import DrawingCanvas
+from src.ui.roi_list_panel import ROIListPanel
 from src.ui.widgets.connection_row import ConnectionRow
 
 TEXT = "#eaeaea"
@@ -16,35 +17,50 @@ RED = "#e74c3c"
 
 
 class Workspace(ctk.CTkFrame):
-    def __init__(self, parent, obs_connect_cb=None, spout_select_cb=None, **kwargs):
+    def __init__(
+        self,
+        parent,
+        obs_connect_cb=None,
+        spout_select_cb=None,
+        on_roi_delete=None,
+        on_roi_select=None,
+        **kwargs,
+    ):
         super().__init__(parent, corner_radius=10, fg_color="#16213e", **kwargs)
 
         self._obs_connect_cb = obs_connect_cb
         self._obs_connected = False
 
-        # --- Connection Header Row 1: OBS ws ---
+        # --- Top bar: OBS + Spout connections ---
+        top_bar = ctk.CTkFrame(self, fg_color="transparent")
+        top_bar.pack(fill="x", padx=12, pady=(8, 4))
+
+        # OBS connection
+        obs_frame = ctk.CTkFrame(top_bar, fg_color="transparent")
+        obs_frame.pack(side="left", fill="x", expand=True)
+
         self.obs_row = ConnectionRow(
-            self,
+            obs_frame,
             "OBS ws",
             ["127.0.0.1", "localhost"],
             command=lambda val: self._on_obs_ip_change(val),
         )
-        self.obs_row.pack(fill="x", padx=12, pady=(12, 4))
+        self.obs_row.pack(fill="x", pady=(0, 4))
 
-        port_frame = ctk.CTkFrame(self, fg_color="transparent")
-        port_frame.pack(fill="x", padx=12, pady=(0, 8))
-        ctk.CTkLabel(port_frame, text="PORT", text_color=TEXT, font=("", 12)).pack(
+        port_frame = ctk.CTkFrame(obs_frame, fg_color="transparent")
+        port_frame.pack(fill="x")
+        ctk.CTkLabel(port_frame, text="PORT", text_color=TEXT, font=("", 11)).pack(
             side="left", padx=(0, 6)
         )
         self.port_entry = ctk.CTkEntry(
-            port_frame, placeholder_text="4455", width=80, corner_radius=6
+            port_frame, placeholder_text="4455", width=70, corner_radius=6,
         )
-        self.port_entry.pack(side="left", padx=(0, 8))
+        self.port_entry.pack(side="left", padx=(0, 6))
 
         self.obs_btn = ctk.CTkButton(
             port_frame,
             text="Connect",
-            width=90,
+            width=80,
             corner_radius=6,
             fg_color=GREEN,
             hover_color="#27ae60",
@@ -53,44 +69,32 @@ class Workspace(ctk.CTkFrame):
         )
         self.obs_btn.pack(side="left")
 
-        # --- Connection Header Row 2: Spout ---
+        # Spout connection
+        spout_frame = ctk.CTkFrame(top_bar, fg_color="transparent", width=200)
+        spout_frame.pack(side="right", fill="x")
+
         self.spout_row = ConnectionRow(
-            self,
-            "Spoutsenders",
+            spout_frame,
+            "Spout",
             [],
             command=spout_select_cb,
         )
-        self.spout_row.pack(fill="x", padx=12, pady=(0, 12))
+        self.spout_row.pack(fill="x")
 
-        # --- Video Canvas ---
-        self.canvas = ctk.CTkFrame(self, fg_color=BG_DARK, corner_radius=8)
-        self.canvas.pack(fill="both", expand=True, padx=12, pady=(0, 12))
-        self.canvas.pack_propagate(False)
+        # --- Main area: DrawingCanvas + ROI list ---
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=12, pady=(4, 8))
 
-        self.canvas_label = ctk.CTkLabel(
-            self.canvas,
-            text="Video Feed",
-            text_color="#444444",
-            font=("", 18),
+        self.canvas = DrawingCanvas(main_frame)
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        self.roi_list = ROIListPanel(
+            main_frame,
+            width=180,
+            on_delete=on_roi_delete,
+            on_select=on_roi_select,
         )
-        self.canvas_label.place(relx=0.5, rely=0.5, anchor="center")
-
-        # --- JSON Viewer ---
-        json_label = ctk.CTkLabel(
-            self, text="Json", text_color=TEXT, font=("", 13, "bold")
-        )
-        json_label.pack(anchor="w", padx=12, pady=(0, 4))
-
-        self.json_view = ctk.CTkTextbox(
-            self,
-            height=140,
-            corner_radius=8,
-            fg_color="#0d0d1a",
-            text_color=TEXT,
-            font=("Consolas", 11),
-        )
-        self.json_view.pack(fill="x", padx=12, pady=(0, 12))
-        self.json_view.configure(state="disabled")
+        self.roi_list.pack(side="right", fill="y", padx=(8, 0))
 
     def _on_obs_ip_change(self, ip: str) -> None:
         pass
@@ -111,21 +115,6 @@ class Workspace(ctk.CTkFrame):
                 self.obs_btn.configure(text="Disconnect", fg_color=RED, hover_color="#c0392b")
                 self.set_obs_connected(True)
 
-    def set_canvas_image(self, pil_img: Optional[Image.Image]) -> None:
-        if pil_img is None:
-            self.canvas_label.configure(image="", text="Video Feed")
-            return
-        cw = self.canvas.winfo_width()
-        ch = self.canvas.winfo_height()
-        if cw > 10 and ch > 10:
-            pil_img.thumbnail((cw, ch), Image.LANCZOS)
-        ctk_img = ctk.CTkImage(
-            light_image=pil_img,
-            dark_image=pil_img,
-            size=pil_img.size,
-        )
-        self.canvas_label.configure(image=ctk_img, text="")
-
     def refresh_spout_list(self, senders: list[str]) -> None:
         self.spout_row.set_options(senders)
 
@@ -135,9 +124,6 @@ class Workspace(ctk.CTkFrame):
     def set_obs_connected(self, connected: bool) -> None:
         self.obs_row.set_connected(connected)
 
-    def update_json(self, data: dict) -> None:
-        self.json_view.configure(state="normal")
-        self.json_view.delete("0.0", "end")
-        formatted = json.dumps(data, indent=2, ensure_ascii=False)
-        self.json_view.insert("0.0", formatted)
-        self.json_view.configure(state="disabled")
+    def set_canvas_image(self, pil_img: Optional[Image.Image]) -> None:
+        # Only used in setup mode; LIVE mode skips this entirely
+        pass

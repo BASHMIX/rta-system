@@ -1,10 +1,12 @@
 {
   "spout": {
-    "sender_name": "OBS",
-    "sample_points": [
-      [640, 360],
-      [200, 150]
-    ],
+    "sender_name": "My_Broadcast",
     "target_fps": 30
-  }
+  },
+  "obs": {
+    "host": "127.0.0.1",
+    "port": 4455
+  },
+  "rois": [],
+  "frame_skip": 4
 }
