@@ -1,108 +1,75 @@
-# Data Model: Spout Frame Receiver
+# Data Model: Phase 2 — UX Refinements
 
-**Date**: 2026-05-17 | **Branch**: `003-spout-receiver`
+## ROI (Updated)
 
-## Entities
-
-### SpoutFrame
-
-A single video frame received from the Spout sender.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `width` | `int` | Frame width in pixels |
-| `height` | `int` | Frame height in pixels |
-| `data` | `np.ndarray` | Pixel data as BGRA uint8 array, shape `(H, W, 4)` |
-| `timestamp` | `float` | `time.perf_counter()` value at capture time |
-
-**Validation**:
-- `width > 0` and `height > 0`
-- `data.shape == (height, width, 4)`
-- `data.dtype == np.uint8`
-
-**State transitions**: N/A (immutable value object)
-
----
-
-### SpoutReceiver
-
-Manages the Spout connection lifecycle.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `_receiver` | `SpoutGL.SpoutReceiver \| None` | Underlying SpoutGL receiver instance |
-| `_sender_name` | `str` | Name of the Spout sender to connect to |
-| `_width` | `int` | Most recent frame width |
-| `_height` | `int` | Most recent frame height |
-| `_connected` | `bool` | Whether currently connected to a sender |
-
-**Methods**:
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `connect()` | `None` | Open Spout receiver and set sender name |
-| `disconnect()` | `None` | Release Spout receiver |
-| `receive_frame()` | `SpoutFrame \| None` | Capture latest frame, or None if not ready |
-| `is_connected()` | `bool` | Check connection status |
-
-**State transitions**:
-```
-disconnected → connect() → connected
-connected → disconnect() → disconnected
-connected → (sender lost) → disconnected → (auto-retry) → connected
+```python
+@dataclass
+class ROI:
+    id: str                    # UUID short (8 chars)
+    name: str                  # User-defined name
+    x: int                     # Top-left X (screen coordinates)
+    y: int                     # Top-left Y (screen coordinates)
+    width: int                 # Width in pixels
+    height: int                # Height in pixels
+    tool_type: str             # "health_bar" | "timer" | "text"
+    player: int                # 1 or 2
+    obs_target: OBSTarget      # NEW: hierarchical target
+    mirrored_from: str         # Source ROI name (empty if not mirrored)
 ```
 
-**Validation**:
-- `connect()` must be called before `receive_frame()`
-- `receive_frame()` returns `None` if sender not active
+## OBSTarget (New)
 
----
+```python
+@dataclass
+class OBSTarget:
+    type: str                  # "source" | "filter"
+    name: str                  # Source name or filter name
+    source: str                # Parent source name (only if type="filter")
+    action: str                # "visibility_on" | "visibility_off" | "filter_enable" | "filter_disable"
+```
 
-### ColorSample
+## ScaleMode (New)
 
-A single pixel color reading at a coordinate.
+```python
+SCALE_MODES = {
+    "native": (None, None),    # Use sender resolution
+    "1080p": (1920, 1080),
+    "720p": (1280, 720),
+}
+```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `x` | `int` | X coordinate (column) |
-| `y` | `int` | Y coordinate (row) |
-| `r` | `int` | Red channel (0–255) |
-| `g` | `int` | Green channel (0–255) |
-| `b` | `int` | Blue channel (0–255) |
-| `h` | `int` | Hue (0–179 in OpenCV HSV) |
-| `s` | `int` | Saturation (0–255) |
-| `v` | `int` | Value (0–255) |
+## Canvas State (New)
 
-**Validation**:
-- `0 <= x < frame_width`
-- `0 <= y < frame_height`
-- `0 <= r,g,b <= 255`
-- `0 <= h <= 179`, `0 <= s,v <= 255`
+```python
+@dataclass
+class CanvasState:
+    scale_mode: str            # "native" | "1080p" | "720p"
+    selected_roi_id: str | None
+    is_drawing: bool           # True when creating new ROI
+    is_moving: bool            # True when dragging selected ROI
+    is_resizing: bool          # True when dragging resize handle
+    resize_handle: str | None  # "tl" | "tr" | "bl" | "br" | "t" | "b" | "l" | "r"
+    drag_offset: tuple[int, int]  # (dx, dy) for move operations
+```
 
----
+## Validation Rules
 
-### CaptureConfig
+- ROI width/height must be >= 10 pixels (minimum viable sampling area)
+- ROI coordinates must be within screen bounds (clamped on save)
+- OBSTarget type="filter" requires non-empty `source` field
+- Scale mode changes must preserve ROI coordinate proportions
 
-Configuration for the capture pipeline.
+## State Transitions
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `sender_name` | `str` | `"OBS"` | Spout sender name to connect to |
-| `sample_points` | `list[tuple[int,int]]` | `[(100, 100)]` | List of (x, y) pixel coordinates to sample |
-| `target_fps` | `int` | `30` | Target frame processing rate |
-
-**Validation**:
-- `sender_name` must be non-empty string
-- `sample_points` must have at least one point
-- Each point: `x >= 0`, `y >= 0`
-- `target_fps` must be in range `[1, 240]`
-
-**Source**: Loaded from `config.json["spout"]` at startup.
-
-## Relationships
+### ROI Interaction State Machine
 
 ```
-CaptureConfig (1) ──configures──> SpoutReceiver (1)
-SpoutReceiver (1) ──produces──> SpoutFrame (N)
-SpoutFrame (1) ──sampled at──> ColorSample (N)
-CaptureConfig (1) ──defines──> sample_points (N) ──used for──> ColorSample (N)
+IDLE → DRAWING (click on empty canvas)
+IDLE → SELECTED (click inside existing ROI)
+SELECTED → MOVING (drag inside ROI)
+SELECTED → RESIZING (drag on edge/corner handle)
+SELECTED → IDLE (click outside ROI)
+DRAWING → IDLE (mouse release)
+MOVING → SELECTED (mouse release)
+RESIZING → SELECTED (mouse release)
 ```

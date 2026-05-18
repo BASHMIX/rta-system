@@ -24,6 +24,7 @@ class SpoutConfig:
     obs_host: str = "127.0.0.1"
     obs_port: int = 4455
     frame_skip: int = 2
+    scale_mode: str = "native"
 
     @classmethod
     def from_file(cls, path: str | Path) -> "SpoutConfig":
@@ -53,6 +54,11 @@ class SpoutConfig:
         target_fps = sp.get("target_fps", 30)
         if not isinstance(target_fps, int) or target_fps < 1 or target_fps > 240:
             raise ConfigError(f"spout.target_fps must be 1-240 (got {target_fps})")
+        
+        frame_skip = sp.get("frame_skip", 2)
+        scale_mode = sp.get("scale_mode", "native")
+        if scale_mode not in ["native", "1080p", "720p"]:
+            raise ConfigError(f"spout.scale_mode must be 'native', '1080p', or '720p' (got {scale_mode})")
 
         raw_rois = raw.get("rois", [])
         rois = [ROI.from_dict(r) for r in raw_rois]
@@ -61,17 +67,14 @@ class SpoutConfig:
         obs_host = obs.get("host", "127.0.0.1")
         obs_port = obs.get("port", 4455)
 
-        frame_skip = raw.get("frame_skip", 2)
-        if not isinstance(frame_skip, int) or frame_skip < 0 or frame_skip > 10:
-            raise ConfigError(f"frame_skip must be 0-10 (got {frame_skip})")
-
         logger.info(
-            "Loaded config: sender='%s', %d points, %d FPS, %d ROIs, skip=%d",
+            "Loaded config: sender='%s', %d points, %d FPS, %d ROIs, skip=%d, scale=%s",
             sender_name,
             len(points),
             target_fps,
             len(rois),
             frame_skip,
+            scale_mode,
         )
         return cls(
             sender_name=sender_name,
@@ -81,6 +84,7 @@ class SpoutConfig:
             obs_host=obs_host,
             obs_port=obs_port,
             frame_skip=frame_skip,
+            scale_mode=scale_mode,
         )
 
     def to_dict(self) -> dict:
@@ -89,13 +93,14 @@ class SpoutConfig:
                 "sender_name": self.sender_name,
                 "sample_points": [list(p) for p in self.sample_points],
                 "target_fps": self.target_fps,
+                "frame_skip": self.frame_skip,
+                "scale_mode": self.scale_mode,
             },
             "obs": {
                 "host": self.obs_host,
                 "port": self.obs_port,
             },
             "rois": [r.to_dict() for r in self.rois],
-            "frame_skip": self.frame_skip,
         }
 
     def save(self, path: str | Path) -> None:

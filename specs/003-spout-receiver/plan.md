@@ -1,12 +1,12 @@
-# Implementation Plan: Phase 1 — UI & Drawing Tools
+# Implementation Plan: Phase 2 — UX Refinements & Canvas Polish
 
 **Branch**: `003-spout-receiver` | **Date**: 2026-05-17 | **Spec**: [spec.md](./spec.md)
 
-**Status**: ✅ **COMPLETE** — All tasks T034-T049 implemented and verified.
+**Status**: 🔄 **IN PROGRESS** — Planning phase
 
 ## Summary
 
-Build the interactive configuration workspace: upload a static HUD screenshot, draw scalable ROI rectangles (Health Bar, Timer, Text), assign custom names and OBS actions, mirror coordinates for P2, and export to `config.json`. LIVE mode disables canvas rendering for zero-overhead capture.
+Refine the Phase 1 implementation based on user feedback: ROI selection/move/resize, persistent tools, 16:9 canvas with signal scaling, live mode frame visibility fix, OBS source→filter hierarchy, and left panel tool list with delete.
 
 ## Technical Context
 
@@ -14,9 +14,9 @@ Build the interactive configuration workspace: upload a static HUD screenshot, d
 
 **Primary Dependencies**:
 - CustomTkinter — dark-mode UI framework
-- PIL (Pillow) — image loading, display
+- PIL (Pillow) — image loading, display, overlay rendering
 - SpoutGL via SpoutLibrary.dll — frame capture (ctypes, GPU-affinity aware)
-- obsws-python — OBS WebSocket v5 control
+- obsws-python — OBS WebSocket v5 control (GetInputList, GetSourceFilterList)
 - OpenCV (`cv2`) — HSV color conversion, image processing
 - NumPy — array operations
 
@@ -26,9 +26,10 @@ Build the interactive configuration workspace: upload a static HUD screenshot, d
 
 **Architecture Notes**:
 - UI layer: configuration workspace only; minimized at runtime
-- Worker thread: detached from UI, runs the analytical loop (Spout → NumPy → ROI crop/mask → segment math → delta calc → event dispatch)
-- OBS Events: condition-action rules in `config.json` (toggle source/filter via WebSocket)
-- P1→P2 Mirror: coordinate inversion (`screen_width - x`) + direction flip
+- Worker thread: `CaptureThread` (background `threading.Thread`), UI updates via `after()` + `queue.Queue` bridge
+- Canvas: 16:9 fixed aspect ratio, scale modes (native/1080p/720p)
+- ROI interaction: click-to-select, drag-to-move, handle-drag-to-resize
+- OBS hierarchy: source → filter (parent-child), actions applied to one target at a time
 
 ## Constitution Check
 
@@ -42,43 +43,29 @@ Build the interactive configuration workspace: upload a static HUD screenshot, d
 
 ## Project Structure
 
-### New Source Files
-
-```text
-src/
-├── roi/
-│   ├── __init__.py          # ROI dataclass, crop, mirror, serialize
-│   ├── base.py              # BaseAnalyzer: abstract analyze()
-│   ├── health_bar.py        # HSV center-row sampling → fill %
-│   ├── timer.py             # OCR for timer digits (pytesseract)
-│   └── text_ocr.py          # OCR for general text (pytesseract)
-├── ui/
-│   ├── drawing_canvas.py    # Screenshot display, drag-to-draw, center guide (X=960)
-│   ├── roi_list_panel.py    # Scrollable ROI list
-│   └── widgets/
-│       └── roi_row.py       # Single ROI row widget
-```
-
 ### Modified Files
 
 ```text
 src/ui/
-├── tools_panel.py           # Upload Screenshot (JPG/PNG), tool selector, SETUP/LIVE toggle, frame skip dropdown
-├── workspace.py             # Replace video canvas with DrawingCanvas + ROI list sidebar
-├── properties.py            # Live X/Y/W/H, name input, OBS action assignment, Add ROI, Mirror, Save Config
-├── app.py                   # Wire panels, LIVE mode skips canvas, frame skip logic
-src/spout/
-└── config.py                # Expanded schema: rois array, obs section, frame_skip
+├── drawing_canvas.py        # Add: select/move/resize, 16:9 ratio, scale modes, live frame display
+├── roi_list_panel.py        # Move to left panel, add (X) delete buttons
+├── workspace.py             # Re-layout: left panel + center canvas + right properties
+├── tools_panel.py           # Add: resolution scale selector (native/1080p/720p)
+├── properties.py            # Add: OBS source dropdown + filter checkbox + filter dropdown
+└── app.py                   # Wire: OBS source/filter list population, scale mode changes
+src/obs/
+└── client.py                # Add: get_source_filters(source_name) method
 ```
 
-### Config Schema
+### Config Schema (Updated)
 
 ```json
 {
   "spout": {
     "sender_name": "Spout_OBS_Filter",
     "target_fps": 30,
-    "frame_skip": 2
+    "frame_skip": 2,
+    "scale_mode": "1080p"
   },
   "rois": [
     {
@@ -87,10 +74,24 @@ src/spout/
       "x": 100, "y": 50, "width": 400, "height": 30,
       "tool_type": "health_bar",
       "player": 1,
-      "obs_source": "Game Capture",
-      "obs_filter": "",
-      "obs_action": "visibility_on",
-      "mirrored_from": ""
+      "obs_target": {
+        "type": "source",
+        "name": "Game Capture",
+        "action": "visibility_on"
+      }
+    },
+    {
+      "id": "uuid-2",
+      "name": "P1 Timer",
+      "x": 500, "y": 50, "width": 100, "height": 30,
+      "tool_type": "timer",
+      "player": 1,
+      "obs_target": {
+        "type": "filter",
+        "source": "Game Capture",
+        "name": "Color Correction",
+        "action": "filter_enable"
+      }
     }
   ],
   "obs": {
@@ -100,43 +101,29 @@ src/spout/
 }
 ```
 
-## Tool Types
-
-| Type | Analysis | Output |
-|------|----------|--------|
-| **Health Bar** | Samples center row left→right, finds health→background transition via HSV | Fill percentage (0-100) |
-| **Timer** | OCR on digit area (pytesseract, optional) | Numeric string |
-| **Text** | OCR on text area (pytesseract, optional) | String value |
-
-All three are scalable rectangles. The difference is only in post-crop analysis.
-
 ## Performance Rules
 
 1. **LIVE mode skips canvas rendering** — `grab()` only, zero `set_canvas_image()` calls
 2. **Crop-first** — all analysis on `frame[y:y+h, x:x+w]` only
 3. **Frame skip** — configurable 0-10 via dropdown (0 = every frame, 10 = 1 of 11)
 4. **Zero I/O during loop** — config loaded at startup, saved only on explicit button click
+5. **ROI interaction < 50ms** — selection, move, resize must feel instantaneous
 
 ## Spec-to-Plan Mapping
 
 | Spec Item | Plan Coverage | Status |
 |-----------|---------------|--------|
-| FR-001: Spout connection | `SpoutGLSource.open()`, `grab()` | ✅ |
-| FR-002: NumPy RGBA frames | `_GLContext` + `receiveTexture` + `glGetTexImage` | ✅ |
-| FR-003: Sample at coords | `ROI.crop()` + analyzer pipeline | ✅ |
-| FR-004: Print RGB/HSV | `health_bar.py` → `logger.info()` | ✅ |
-| FR-005: Configurable FPS | `frame_skip` dropdown 0-10 | ✅ |
-| FR-006: Disconnection handling | `grab()` returns `None` on failure | ⚠️ Needs retry logic |
-| FR-007: Config file | `config.json` load/save | ✅ |
-| FR-008: OOB clamping | `ROI.crop()` clamps to frame bounds | ✅ |
-| FR-009: Resolution change | Not yet implemented | ❌ Gap |
-| FR-010: Drawing canvas | `DrawingCanvas` class | ✅ |
-| FR-011: Tool types | `health_bar.py`, `timer.py`, `text_ocr.py` | ✅ |
-| FR-012: ROI serialization | `ROI.to_dict()`, `from_dict()` | ✅ |
-| FR-013: P2 mirroring | `ROI.mirror(screen_width=1920)` | ✅ |
-| FR-014: SETUP/LIVE mode | `_mode` flag, canvas skip | ✅ |
-| FR-015: Frame skip | `_frame_skip`, `_skip_counter` | ✅ |
-| FR-016: OBS dispatch | Not yet implemented | ❌ Gap (future sprint) |
+| FR-001 to FR-016 | Phase 1 implementation | ✅ |
+| FR-017: ROI click-to-select | `DrawingCanvas._on_press` hit-testing | 🔄 New |
+| FR-018: ROI drag-to-move | `DrawingCanvas._on_drag` move logic | 🔄 New |
+| FR-019: ROI resize handles | `DrawingCanvas` corner/edge handles | 🔄 New |
+| FR-020: 16:9 aspect ratio | `DrawingCanvas` size enforcement | 🔄 New |
+| FR-021: Signal scaling | Scale mode selector + canvas rescale | 🔄 New |
+| FR-022: Live frame visibility | Fix overlay rendering (not masking) | 🔄 New |
+| FR-023: OBS source list | `OBSClient.get_inputs()` → dropdown | 🔄 New |
+| FR-024: OBS filter list | `OBSClient.get_source_filters()` → checkbox + dropdown | 🔄 New |
+| FR-025: Left panel ROI list | `ROIListPanel` moved to left side | 🔄 New |
+| FR-026: Panel→canvas selection sync | Click row → select ROI on canvas | 🔄 New |
 
 ## Open Issues
 

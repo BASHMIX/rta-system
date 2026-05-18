@@ -10,6 +10,8 @@
 
 **Clarification 2026-05-17**: Scope expanded from terminal-only (Sprint 1) to include Phase 1 UI & Drawing Tools (Sprint 3 frontend): interactive screenshot workspace, ROI rectangle drawing, custom naming, OBS action assignment, P2 mirroring, and `config.json` export.
 
+**Refinement 2026-05-17**: UX improvements — ROI selection/editing, persistent tools, 16:9 canvas with scaling, OBS source→filter hierarchy, live mode frame visibility fix.
+
 ## Clarifications
 
 ### Session 2026-05-17
@@ -111,6 +113,73 @@ The system operates in two modes: SETUP (UI active, canvas renders, ROI drawing 
 2. **Given** the system is in LIVE mode, **When** frame skip is set to 2, **Then** analysis runs on 1 of every 3 frames
 3. **Given** the system is in LIVE mode, **When** an ROI analysis threshold is met, **Then** the corresponding OBS action is dispatched
 
+---
+
+### User Story 7 - Select, Move, and Resize Existing ROIs (Priority: P1)
+
+After drawing an ROI, it persists on the canvas. Clicking inside an existing ROI selects it (highlighted border) instead of starting a new drawing. Selected ROIs can be dragged to reposition and resized via edge/corner handles. The right panel updates to show the selected ROI's name and OBS action for editing.
+
+**Why this priority**: Users need precise control over ROI placement after initial drawing. The current behavior (disappearing on click) forces re-drawing, which is inefficient.
+
+**Independent Test**: Draw an ROI, click inside it — it should select (not start new drawing). Drag to move, verify coordinates update. Drag corner to resize, verify dimensions update.
+
+**Acceptance Scenarios**:
+
+1. **Given** an ROI exists on the canvas, **When** the user clicks inside it, **Then** it becomes selected with a highlighted border and no new drawing starts
+2. **Given** an ROI is selected, **When** the user drags it, **Then** the ROI moves and coordinates update in real-time in the right panel
+3. **Given** an ROI is selected, **When** the user drags an edge or corner handle, **Then** the ROI resizes and dimensions update in real-time
+4. **Given** an ROI is selected, **When** the user clicks outside it, **Then** it deselects and clicking on empty canvas starts a new drawing
+
+---
+
+### User Story 8 - Canvas with 16:9 Aspect Ratio and Signal Scaling (Priority: P1)
+
+The central canvas maintains a fixed 16:9 aspect ratio regardless of window size. Users can scale the received Spout signal to 1080p (1920×1080), 720p (1280×720), or native resolution. The canvas displays the scaled video feed with ROI overlays rendered on top.
+
+**Why this priority**: Consistent aspect ratio ensures ROI coordinates map correctly to the game frame. Scaling options accommodate different capture resolutions.
+
+**Independent Test**: Set canvas to 720p mode, verify it renders at 1280×720 aspect ratio. Switch to 1080p, verify 1920×1080. Verify ROI overlays remain correctly positioned after scale change.
+
+**Acceptance Scenarios**:
+
+1. **Given** the canvas is active, **When** the user selects 720p, **Then** the canvas scales to 16:9 ratio matching 1280×720
+2. **Given** the canvas is in 1080p mode, **When** the user switches to 720p, **Then** the video feed and ROI overlays rescale proportionally
+3. **Given** the canvas is in LIVE mode, **When** frames arrive, **Then** the video feed is visible through the canvas with ROI overlays rendered on top (not acting as masks)
+
+---
+
+### User Story 9 - OBS Source and Filter Hierarchy (Priority: P1)
+
+OBS actions are applied to either a source OR a filter on that source, not both simultaneously. The user first selects a source from a populated list of all OBS sources. That source can have a visibility action (show/hide). Optionally, the user can enable a checkbox to list all filters on the selected source, then select a filter and assign a visibility action (enable/disable).
+
+**Why this priority**: OBS actions have a parent-child relationship — filters belong to sources. The current UI incorrectly treats sources and filters as independent targets.
+
+**Independent Test**: Connect to OBS, verify source list populates. Select a source, assign "show" action. Enable filter checkbox, verify filter list populates for that source. Select a filter, assign "enable" action. Save config, verify hierarchy is preserved.
+
+**Acceptance Scenarios**:
+
+1. **Given** OBS is connected, **When** the user opens the source dropdown, **Then** all OBS sources are listed
+2. **Given** a source is selected, **When** the user assigns an action, **Then** it applies visibility (show/hide) to that source
+3. **Given** a source is selected, **When** the user enables the "List Filters" checkbox, **Then** a filter dropdown appears showing only filters belonging to that source
+4. **Given** a filter is selected, **When** the user assigns an action, **Then** it applies visibility (enable/disable) to that filter on the parent source
+5. **Given** a source has both a source action and a filter action configured, **When** saved, **Then** the config stores them as separate entries with parent-child relationship
+
+---
+
+### User Story 10 - ROI Tool List Panel with Delete (Priority: P1)
+
+A left panel displays all created ROI tools as a list, each with its name, type badge, and an (X) delete button. Clicking an item in the list selects the corresponding ROI on the canvas. Deleting from the list removes the ROI from the canvas and config.
+
+**Why this priority**: Users need a quick overview of all defined tools and a way to manage them without selecting on canvas.
+
+**Independent Test**: Create 3 ROIs, verify all appear in left panel with (X) buttons. Click one — it selects on canvas. Click (X) — it removes from panel and canvas.
+
+**Acceptance Scenarios**:
+
+1. **Given** ROIs exist, **When** the left panel renders, **Then** each ROI appears as a row with name, type badge, and (X) delete button
+2. **Given** the left panel shows ROIs, **When** the user clicks a row, **Then** the corresponding ROI is selected on the canvas
+3. **Given** an ROI row is visible, **When** the user clicks (X), **Then** the ROI is removed from the canvas, panel, and config on next save
+
 ### Edge Cases
 
 - What happens when the Spout sender name doesn't exist? The receiver should log an error and retry periodically, not crash.
@@ -118,6 +187,10 @@ The system operates in two modes: SETUP (UI active, canvas renders, ROI drawing 
 - What happens when frame resolution changes mid-stream? The receiver should detect the change and re-allocate buffers.
 - What happens when the GPU has no Spout-compatible driver? The receiver should fail with a descriptive error on startup.
 - What happens when the system can't keep up with the target FPS? The receiver should drop frames rather than queue them unbounded.
+- What happens when the user clicks on an ROI boundary (edge/corner)? The system should prioritize resize over move, and move over new drawing.
+- What happens when the OBS source list is empty? The system should show "No sources found" placeholder and disable filter checkbox.
+- What happens when a selected source has no filters? The filter dropdown should show "No filters" and remain disabled.
+- What happens when the canvas is resized during LIVE mode? The video feed and ROI overlays must rescale proportionally without coordinate drift.
 
 ## Requirements *(mandatory)*
 
@@ -134,11 +207,21 @@ The system operates in two modes: SETUP (UI active, canvas renders, ROI drawing 
 - **FR-009**: The system MUST detect frame resolution changes mid-stream and adapt.
 - **FR-010**: The system MUST provide an interactive canvas for uploading a screenshot and drawing ROI rectangles via mouse drag.
 - **FR-011**: The system MUST support three ROI tool types: Health Bar (multi-color sampling), Timer (OCR), and Text (OCR).
-- **FR-012**: The system MUST serialize ROI definitions (id, name, x, y, width, height, tool_type, player, obs_source, obs_filter, obs_action) to `config.json`.
+- **FR-012**: The system MUST serialize ROI definitions (id, name, x, y, width, height, tool_type, player, obs_target with hierarchical type/source/name/action) to `config.json`.
 - **FR-013**: The system MUST mirror P1 ROI coordinates to P2 using the formula: `x_p2 = screen_width - x_p1 - width`.
 - **FR-014**: The system MUST operate in SETUP mode (UI active, canvas rendering) and LIVE mode (canvas disabled, analysis only).
 - **FR-015**: The system MUST support frame skipping (0-10) in LIVE mode to control analysis frequency.
 - **FR-016**: The system MUST dispatch OBS WebSocket actions (visibility toggle, filter enable/disable) when ROI analysis thresholds are met.
+- **FR-017**: The system MUST allow selecting existing ROIs by clicking inside them, preventing new drawing when an ROI is clicked.
+- **FR-018**: The system MUST allow dragging selected ROIs to reposition them, with live coordinate updates in the properties panel.
+- **FR-019**: The system MUST allow resizing selected ROIs via edge/corner drag handles, with live dimension updates in the properties panel.
+- **FR-020**: The system MUST maintain a fixed 16:9 aspect ratio for the central canvas regardless of window size.
+- **FR-021**: The system MUST provide signal scaling options: native, 1080p (1920×1080), and 720p (1280×720).
+- **FR-022**: The system MUST display the live video feed through the canvas in LIVE mode with ROI overlays rendered on top (not as masks).
+- **FR-023**: The system MUST list all OBS sources in a dropdown for action assignment, with visibility actions (show/hide) applied to the selected source.
+- **FR-024**: The system MUST provide an optional checkbox to list filters belonging to a selected source, with visibility actions (enable/disable) applied to the selected filter.
+- **FR-025**: The system MUST display all created ROIs in a left panel list with name, type badge, and (X) delete button per item.
+- **FR-026**: The system MUST select the corresponding ROI on the canvas when clicking its entry in the left panel list.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -146,8 +229,10 @@ The system operates in two modes: SETUP (UI active, canvas renders, ROI drawing 
 - **SpoutReceiver**: The component that manages the Spout connection lifecycle — connect, receive, disconnect, reconnect.
 - **ColorSample**: A single pixel color reading at a given (x, y) coordinate, containing RGB and HSV values.
 - **CaptureConfig**: Configuration specifying the Spout sender name, sample point coordinates, and target processing FPS.
-- **ROI**: A rectangular region of interest defined by (x, y, width, height) with a tool_type (health_bar, timer, text), player assignment (1 or 2), OBS action mapping, and optional mirror reference.
+- **ROI**: A rectangular region of interest defined by (x, y, width, height) with a tool_type (health_bar, timer, text), player assignment (1 or 2), OBS action mapping, and optional mirror reference. ROIs are selectable, movable, and resizable on the canvas.
 - **AnalysisResult**: The output of an ROI analysis — ROI name, tool type, computed value (fill %, OCR text, etc.), and timestamp.
+- **OBSSource**: An OBS scene item or input that can have visibility actions (show/hide) applied. Sources may contain filters.
+- **OBSFilter**: A filter attached to a parent OBS source, with independent visibility actions (enable/disable). Filters are listed only after a parent source is selected.
 
 ## Success Criteria *(mandatory)*
 
@@ -161,6 +246,10 @@ The system operates in two modes: SETUP (UI active, canvas renders, ROI drawing 
 - **SC-006**: ROI drawing workflow: user can upload a screenshot, draw 3 ROIs, assign names and tool types, and save to `config.json` in under 60 seconds.
 - **SC-007**: LIVE mode canvas rendering is fully disabled; frame grab + analysis loop runs at configured frame skip with zero PIL/tkinter overhead.
 - **SC-008**: OBS WebSocket actions dispatch within 100ms of ROI analysis threshold detection.
+- **SC-009**: ROI selection: clicking inside an existing ROI selects it in under 50ms with no new drawing initiated.
+- **SC-010**: Canvas maintains exact 16:9 aspect ratio at all window sizes; scaling between 1080p/720p/native completes in under 200ms.
+- **SC-011**: Live video feed is fully visible through the canvas in LIVE mode; ROI overlays are semi-transparent and do not obscure the underlying frame.
+- **SC-012**: OBS source list populates within 2 seconds of connection; filter list populates within 500ms of enabling the filter checkbox.
 
 ## Assumptions
 

@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Spout Frame Receiver
+# Specification Quality Checklist: Spout Frame Receiver (Refinement)
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-05-17
@@ -31,6 +31,5 @@
 
 ## Notes
 
-- All 16 items pass validation.
-- No NEEDS CLARIFICATION markers needed.
-- Ready for `/speckit.plan`.
+- All items passed on first validation.
+- Spec updated with 5 new user stories (7-10), 10 new functional requirements (FR-017 to FR-026), 4 new success criteria (SC-009 to SC-012), 2 new key entities (OBSSource, OBSFilter), and 5 new edge cases.

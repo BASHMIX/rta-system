@@ -39,7 +39,7 @@ tests in `tests/`.
 - No external AI/LLM dependencies at this stage (roadmap positions AI as a "future" layer).
 
 <!-- SPECKIT START -->
-**Active Plan**: `specs/003-spout-receiver/plan.md` — Spout Frame Receiver (capture frames, sample colors, print to terminal)
+**Active Plan**: `specs/003-spout-receiver/plan.md` — Phase 2: UX Refinements & Canvas Polish
 
-**Status**: Phase 1 (UI & Drawing Tools) implementation complete. All tasks T034-T049 done. Constitution Principle IV compliant: capture loop runs in background `CaptureThread` (threading.Thread), UI updates via `after()` + `queue.Queue` bridge.
+**Status**: Phase 1 complete. Phase 2 Phases 13-16 complete (T051-T070). Ready for Phase 17 (Integration & Polish T071-T075).
 <!-- SPECKIT END -->

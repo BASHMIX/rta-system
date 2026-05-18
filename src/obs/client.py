@@ -58,6 +58,16 @@ class OBSClient:
             logger.warning("Failed to get OBS inputs: %s", e)
             return []
 
+    def get_source_filters(self, source_name: str) -> list[str]:
+        if self._client is None:
+            return []
+        try:
+            resp = self._client.get_source_filter_list(sourceName=source_name)
+            return [item["filterName"] for item in resp.filters]
+        except Exception as e:
+            logger.warning("Failed to get filters for '%s': %s", source_name, e)
+            return []
+
     @property
     def is_connected(self) -> bool:
         return self._client is not None

@@ -63,6 +63,7 @@ class RTAWorkspace(ctk.CTk):
             on_upload=self._on_upload,
             on_mode_toggle=self._on_mode_toggle,
             on_frame_skip=self._on_frame_skip,
+            on_scale_change=self._on_scale_change,
         )
         self.tools.grid(row=0, column=0, sticky="nsew", padx=(6, 3), pady=6)
 
@@ -84,6 +85,7 @@ class RTAWorkspace(ctk.CTk):
         self.properties.grid(row=0, column=2, sticky="nsew", padx=(3, 6), pady=6)
 
         self.workspace.canvas.set_coords_callback(self._on_coords_change)
+        self.workspace.canvas.set_select_callback(self._on_canvas_select)
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -116,8 +118,7 @@ class RTAWorkspace(ctk.CTk):
             try:
                 data = self._result_queue.get_nowait()
                 if data["type"] == "frame":
-                    pil_img = Image.fromarray(data["rgb"])
-                    self.workspace.canvas._render()
+                    self.workspace.canvas.set_live_frame(data["rgb"])
                 elif data["type"] == "fps":
                     logger.debug("Capture FPS: %.1f", data["fps"])
                 elif data["type"] == "analysis":
@@ -154,10 +155,15 @@ class RTAWorkspace(ctk.CTk):
             logger.info("OBS disconnected")
             return True
 
+    def _on_scale_change(self, scale_mode: str) -> None:
+        logger.info("Scale mode changed to: %s", scale_mode)
+        self.workspace.canvas.set_scale_mode(scale_mode.lower())
+
     def _obs_poll_sources(self) -> None:
         if self._obs_client.is_connected:
             sources = self._obs_client.get_inputs()
             logger.debug("OBS sources: %s", sources)
+            self.properties.set_obs_sources(sources)
         self.after(5000, self._obs_poll_sources)
 
     def _on_upload(self, path: str) -> None:
@@ -197,6 +203,13 @@ class RTAWorkspace(ctk.CTk):
         self._selected_roi_id = roi_id
         roi = next((r for r in self._rois if r.id == roi_id), None)
         self.properties.set_selected_roi(roi)
+        self.workspace.canvas.select_roi(roi_id)
+
+    def _on_canvas_select(self, roi_id: Optional[str]) -> None:
+        self._selected_roi_id = roi_id
+        self.workspace.roi_list.select_roi(roi_id)
+        roi = next((r for r in self._rois if r.id == roi_id), None) if roi_id else None
+        self.properties.set_selected_roi(roi)
 
     def _on_add_roi(self, roi: ROI) -> None:
         tool_type = self.tools.get_tool_type()
@@ -218,17 +231,24 @@ class RTAWorkspace(ctk.CTk):
         logger.info("ROI mirrored: %s -> %s", source_roi.name, mirrored.name)
 
     def _on_save(self) -> None:
+        for roi in self._rois:
+            roi.x = max(0, min(roi.x, 1920 - roi.width))
+            roi.y = max(0, min(roi.y, 1080 - roi.height))
+            roi.width = max(10, min(roi.width, 1920 - roi.x))
+            roi.height = max(10, min(roi.height, 1080 - roi.y))
+
         config = {
             "spout": {
                 "sender_name": self._spout_source._sender_name or "",
                 "target_fps": 30,
+                "frame_skip": self._frame_skip,
+                "scale_mode": self.tools.get_scale_mode().lower(),
             },
             "obs": {
                 "host": self.workspace.obs_row.get_value(),
                 "port": int(self.workspace.port_entry.get() or "4455"),
             },
             "rois": [r.to_dict() for r in self._rois],
-            "frame_skip": self._frame_skip,
         }
         CONFIG_PATH.write_text(json.dumps(config, indent=2), encoding="utf-8")
         logger.info("Config saved to %s", CONFIG_PATH.resolve())

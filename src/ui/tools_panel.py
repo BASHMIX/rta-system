@@ -17,6 +17,8 @@ TOOL_TYPES = [
     ("Text", "text"),
 ]
 
+SCALE_MODES = ["Native", "1080p", "720p"]
+
 
 class ToolsPanel(ctk.CTkFrame):
     def __init__(
@@ -26,6 +28,7 @@ class ToolsPanel(ctk.CTkFrame):
         on_upload: Callable[[str], None] = None,
         on_mode_toggle: Callable[[str], None] = None,
         on_frame_skip: Callable[[int], None] = None,
+        on_scale_change: Callable[[str], None] = None,
         **kwargs,
     ):
         super().__init__(parent, corner_radius=10, fg_color=SURFACE, **kwargs)
@@ -34,6 +37,7 @@ class ToolsPanel(ctk.CTkFrame):
         self._on_upload = on_upload
         self._on_mode_toggle = on_mode_toggle
         self._on_frame_skip = on_frame_skip
+        self._on_scale_change = on_scale_change
         self._mode = "setup"
 
         title = ctk.CTkLabel(
@@ -115,6 +119,28 @@ class ToolsPanel(ctk.CTkFrame):
         )
         self._skip_menu.pack(fill="x", padx=12, pady=(0, 8))
 
+        sep4 = ctk.CTkFrame(self, height=1, fg_color="#2a2a4a")
+        sep4.pack(fill="x", padx=12, pady=8)
+
+        scale_label = ctk.CTkLabel(
+            self, text="Canvas Scale", font=("", 12, "bold"), text_color=TEXT,
+        )
+        scale_label.pack(anchor="w", padx=12, pady=(4, 4))
+
+        self._scale_var = ctk.StringVar(value="1080p")
+        self._scale_menu = ctk.CTkOptionMenu(
+            self,
+            values=SCALE_MODES,
+            variable=self._scale_var,
+            corner_radius=6,
+            fg_color=HIGHLIGHT,
+            button_color=HIGHLIGHT,
+            button_hover_color="#1a5276",
+            text_color=TEXT,
+            command=self._do_scale_change,
+        )
+        self._scale_menu.pack(fill="x", padx=12, pady=(0, 8))
+
     def _do_upload(self) -> None:
         path = filedialog.askopenfilename(
             title="Select Screenshot",
@@ -137,8 +163,15 @@ class ToolsPanel(ctk.CTkFrame):
         if self._on_frame_skip:
             self._on_frame_skip(int(val))
 
+    def _do_scale_change(self, val: str) -> None:
+        if self._on_scale_change:
+            self._on_scale_change(val)
+
     def get_tool_type(self) -> str:
         return self._tool_var.get()
 
     def get_frame_skip(self) -> int:
         return int(self._skip_var.get())
+
+    def get_scale_mode(self) -> str:
+        return self._scale_var.get()

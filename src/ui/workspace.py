@@ -35,7 +35,6 @@ class Workspace(ctk.CTkFrame):
         top_bar = ctk.CTkFrame(self, fg_color="transparent")
         top_bar.pack(fill="x", padx=12, pady=(8, 4))
 
-        # OBS connection
         obs_frame = ctk.CTkFrame(top_bar, fg_color="transparent")
         obs_frame.pack(side="left", fill="x", expand=True)
 
@@ -69,7 +68,6 @@ class Workspace(ctk.CTkFrame):
         )
         self.obs_btn.pack(side="left")
 
-        # Spout connection
         spout_frame = ctk.CTkFrame(top_bar, fg_color="transparent", width=200)
         spout_frame.pack(side="right", fill="x")
 
@@ -81,20 +79,22 @@ class Workspace(ctk.CTkFrame):
         )
         self.spout_row.pack(fill="x")
 
-        # --- Main area: DrawingCanvas + ROI list ---
+        # --- Main area: Left panel (ROI list) + Center (canvas) ---
         main_frame = ctk.CTkFrame(self, fg_color="transparent")
         main_frame.pack(fill="both", expand=True, padx=12, pady=(4, 8))
 
-        self.canvas = DrawingCanvas(main_frame)
-        self.canvas.pack(side="left", fill="both", expand=True)
-
+        # Left panel: ROI list with (X) delete buttons
         self.roi_list = ROIListPanel(
             main_frame,
-            width=180,
+            width=200,
             on_delete=on_roi_delete,
             on_select=on_roi_select,
         )
-        self.roi_list.pack(side="right", fill="y", padx=(8, 0))
+        self.roi_list.pack(side="left", fill="y", padx=(0, 8))
+
+        # Center: Drawing canvas (16:9)
+        self.canvas = DrawingCanvas(main_frame)
+        self.canvas.pack(side="left", fill="both", expand=True)
 
     def _on_obs_ip_change(self, ip: str) -> None:
         pass
@@ -125,5 +125,4 @@ class Workspace(ctk.CTkFrame):
         self.obs_row.set_connected(connected)
 
     def set_canvas_image(self, pil_img: Optional[Image.Image]) -> None:
-        # Only used in setup mode; LIVE mode skips this entirely
         pass
