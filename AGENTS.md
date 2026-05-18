@@ -41,5 +41,5 @@ tests in `tests/`.
 <!-- SPECKIT START -->
 **Active Plan**: `specs/003-spout-receiver/plan.md` — Phase 2: UX Refinements & Canvas Polish
 
-**Status**: Phase 1 complete. Phase 2 Phases 13-16 complete (T051-T070). Ready for Phase 17 (Integration & Polish T071-T075).
+**Status**: Phase 1 complete. Phase 2 (T051-T075) complete. All refinements implemented.
 <!-- SPECKIT END -->

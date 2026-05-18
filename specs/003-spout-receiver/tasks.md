@@ -36,8 +36,8 @@
 
 ## Phase 17: Integration & Polish
 
-- [ ] T071 Wire scale mode changes to `CaptureThread` — update frame scaling in background thread
-- [ ] T072 Add minimum ROI size constraint (10x10 pixels) — enforce in resize and save
-- [ ] T073 Add ROI coordinate clamping on save — ensure all ROIs within screen bounds
-- [ ] T074 Update `config.json` schema — add `scale_mode` field, migrate `obs_target` structure
-- [ ] T075 Test end-to-end: draw → select → move → resize → assign OBS action → save → reload
+- [x] T071 Wire scale mode changes to `CaptureThread` — update frame scaling in background thread
+- [x] T072 Add minimum ROI size constraint (10x10 pixels) — enforce in resize and save
+- [x] T073 Add ROI coordinate clamping on save — ensure all ROIs within screen bounds
+- [x] T074 Update `config.json` schema — add `scale_mode` field, migrate `obs_target` structure
+- [x] T075 Test end-to-end: draw → select → move → resize → assign OBS action → save → reload

@@ -14,9 +14,10 @@
 
 ## Clarifications
 
-### Session 2026-05-17
+### Session 2026-05-18
 
-- Q: Should the spec be updated to include Phase 1 UI scope or kept as Sprint 1 only? → A: Update existing spec to include UI + ROI tool scope, keeping all sprint artifacts in one feature branch for traceability.
+- Q: Should the OBS "Boolean" action function as a Toggle or set a specific value? → A: Toggle (switching between current states).
+- Q: Canvas border style? → A: No border, add subtle drop shadow and a checkerboard background to visualize alpha transparency.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -211,7 +212,8 @@ A left panel displays all created ROI tools as a list, each with its name, type 
 - **FR-013**: The system MUST mirror P1 ROI coordinates to P2 using the formula: `x_p2 = screen_width - x_p1 - width`.
 - **FR-014**: The system MUST operate in SETUP mode (UI active, canvas rendering) and LIVE mode (canvas disabled, analysis only).
 - **FR-015**: The system MUST support frame skipping (0-10) in LIVE mode to control analysis frequency.
-- **FR-016**: The system MUST dispatch OBS WebSocket actions (visibility toggle, filter enable/disable) when ROI analysis thresholds are met.
+- **FR-016**: The system MUST dispatch OBS WebSocket actions (visibility toggle, filter enable/disable, toggle-based boolean action) when ROI analysis thresholds are met.
+- **FR-027**: The system MUST render the canvas with a subtle drop shadow and a checkerboard background pattern when no video is present to visualize alpha transparency.
 - **FR-017**: The system MUST allow selecting existing ROIs by clicking inside them, preventing new drawing when an ROI is clicked.
 - **FR-018**: The system MUST allow dragging selected ROIs to reposition them, with live coordinate updates in the properties panel.
 - **FR-019**: The system MUST allow resizing selected ROIs via edge/corner drag handles, with live dimension updates in the properties panel.

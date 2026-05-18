@@ -158,6 +158,8 @@ class RTAWorkspace(ctk.CTk):
     def _on_scale_change(self, scale_mode: str) -> None:
         logger.info("Scale mode changed to: %s", scale_mode)
         self.workspace.canvas.set_scale_mode(scale_mode.lower())
+        if self._capture_thread:
+            self._capture_thread.set_scale_mode(scale_mode.lower())
 
     def _obs_poll_sources(self) -> None:
         if self._obs_client.is_connected:
